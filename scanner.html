@@ -140,19 +140,28 @@
 
     function initializeZoomControls() {
       const zoomInput = document.getElementById('zoom');
-      if (videoTrack && videoTrack.getCapabilities().zoom) {
+      if (videoTrack && typeof videoTrack.getCapabilities === 'function') {
         const capabilities = videoTrack.getCapabilities();
-        zoomInput.min = capabilities.zoom.min;
-        zoomInput.max = capabilities.zoom.max;
-        zoomInput.step = capabilities.zoom.step || 1;
-        zoomInput.value = videoTrack.getSettings().zoom || capabilities.zoom.min;
+        if (capabilities.zoom) {
+          zoomInput.min = capabilities.zoom.min;
+          zoomInput.max = capabilities.zoom.max;
+          zoomInput.step = capabilities.zoom.step || 1;
+          zoomInput.value = videoTrack.getSettings().zoom || capabilities.zoom.min;
 
-        zoomInput.oninput = (event) => {
-          setZoom(parseFloat(event.target.value));
-        };
+          zoomInput.oninput = (event) => {
+            const zoomLevel = parseFloat(event.target.value);
+            videoTrack.applyConstraints({ advanced: [{ zoom: zoomLevel }] }).catch(err => {
+              console.error('Error applying zoom constraints:', err);
+            });
+          };
+          zoomInput.style.display = 'block';
+        } else {
+          zoomInput.style.display = 'none';
+          console.warn('Zoom is not supported on this device.');
+        }
       } else {
         zoomInput.style.display = 'none';
-        alert('Zoom controls are not supported on this device.');
+        console.warn('Zoom capabilities are not available.');
       }
     }
 
@@ -161,32 +170,31 @@
         const videoInputDevices = devices.filter(device => device.kind === 'videoinput');
         if (videoInputDevices.length > 0) {
           const firstDeviceId = videoInputDevices[0].deviceId;
-          codeReader.decodeFromVideoDevice(firstDeviceId, 'video', (result, err) => {
-            if (result) {
-              const code = result.text;
-              if (!scanned.has(code)) {
-                scanned.add(code);
-                createPendingItem(code);
-              }
-            } else if (err) {
-              if (err.name === 'NotFoundException') {
-                console.log('No barcode found in the current frame.');
-              } else {
-                console.error('Error during decoding:', err);
-              }
-            }
-          }).catch(err => {
-            console.error('Error during decoding:', err);
-          });
 
-          // Get the video stream and initialize zoom controls
+          // Use getUserMedia to ensure compatibility with iOS
           navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: firstDeviceId } } })
             .then(stream => {
+              const videoElement = document.getElementById('video');
+              videoElement.srcObject = stream;
+              videoElement.play(); // Ensure the video feed starts playing
               videoTrack = stream.getVideoTracks()[0];
               initializeZoomControls();
+
+              // Start decoding barcodes
+              codeReader.decodeFromVideoElement(videoElement, (result, err) => {
+                if (result) {
+                  const code = result.text;
+                  if (!scanned.has(code)) {
+                    scanned.add(code);
+                    createPendingItem(code);
+                  }
+                } else if (err && err.name !== 'NotFoundException') {
+                  console.error('Error during decoding:', err);
+                }
+              });
             }).catch(err => {
               console.error('Error accessing video track:', err);
-              alert('Unable to access video track for zoom controls.');
+              alert('Unable to access video feed. Please check camera permissions.');
             });
         } else {
           alert('No video input devices found. Please connect a camera.');
