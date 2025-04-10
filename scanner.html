@@ -21,7 +21,7 @@
       text-align: center;
     }
 
-    button, input[type="range"] {
+    button, input[type="range"], select {
       font-size: 1.2em;
       margin: 10px;
       padding: 10px;
@@ -58,6 +58,7 @@
     let scanning = false;
     let automatedMode = true;
     let videoTrack;
+    let currentDeviceId;
 
     function createPendingItem(code) {
       const list = document.getElementById('pending');
@@ -172,44 +173,64 @@
       }
     }
 
-    function startAutomatedScanning() {
+    function populateCameraOptions() {
+      const cameraSelect = document.getElementById('cameraSelect');
       navigator.mediaDevices.enumerateDevices().then(devices => {
         const videoInputDevices = devices.filter(device => device.kind === 'videoinput');
+        cameraSelect.innerHTML = ''; // Clear existing options
+        videoInputDevices.forEach((device, index) => {
+          const option = document.createElement('option');
+          option.value = device.deviceId;
+          option.textContent = device.label || `Camera ${index + 1}`;
+          cameraSelect.appendChild(option);
+        });
+
+        // Set the current device ID to the first camera by default
         if (videoInputDevices.length > 0) {
-          const firstDeviceId = videoInputDevices[0].deviceId;
-
-          // Use getUserMedia to ensure compatibility with iOS
-          navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: firstDeviceId } } })
-            .then(stream => {
-              const videoElement = document.getElementById('video');
-              videoElement.srcObject = stream;
-              videoElement.play(); // Ensure the video feed starts playing
-              videoTrack = stream.getVideoTracks()[0];
-              initializeZoomControls();
-
-              // Start decoding barcodes
-              codeReader.decodeFromVideoElement(videoElement, (result, err) => {
-                if (result) {
-                  const code = result.text;
-                  if (!scanned.has(code)) {
-                    scanned.add(code);
-                    createPendingItem(code);
-                  }
-                } else if (err && err.name !== 'NotFoundException') {
-                  console.error('Error during decoding:', err);
-                }
-              });
-            }).catch(err => {
-              console.error('Error accessing video track:', err);
-              alert('Unable to access video feed. Please check camera permissions.');
-            });
-        } else {
-          alert('No video input devices found. Please connect a camera.');
+          currentDeviceId = videoInputDevices[0].deviceId;
+          cameraSelect.value = currentDeviceId;
         }
       }).catch(err => {
-        console.error('Error accessing video input devices:', err);
-        alert('Unable to access camera. Please check permissions.');
+        console.error('Error enumerating devices:', err);
+        alert('Unable to access camera devices.');
       });
+    }
+
+    function switchCamera() {
+      const cameraSelect = document.getElementById('cameraSelect');
+      currentDeviceId = cameraSelect.value;
+      startAutomatedScanning(); // Restart the video feed with the selected camera
+    }
+
+    function startAutomatedScanning() {
+      if (currentDeviceId) {
+        navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: currentDeviceId } } })
+          .then(stream => {
+            const videoElement = document.getElementById('video');
+            videoElement.srcObject = stream;
+            videoElement.play(); // Ensure the video feed starts playing
+            videoTrack = stream.getVideoTracks()[0];
+            initializeZoomControls();
+
+            // Start decoding barcodes
+            codeReader.decodeFromVideoElement(videoElement, (result, err) => {
+              if (result) {
+                const code = result.text;
+                if (!scanned.has(code)) {
+                  scanned.add(code);
+                  createPendingItem(code);
+                }
+              } else if (err && err.name !== 'NotFoundException') {
+                console.error('Error during decoding:', err);
+              }
+            });
+          }).catch(err => {
+            console.error('Error accessing video track:', err);
+            alert('Unable to access video feed. Please check camera permissions.');
+          });
+      } else {
+        alert('No camera selected.');
+      }
     }
 
     function startManualScanning() {
@@ -235,8 +256,10 @@
     }
 
     window.onload = () => {
+      populateCameraOptions();
       startAutomatedScanning();
 
+      document.getElementById('cameraSelect').onchange = switchCamera;
       document.getElementById('toggleMode').onclick = toggleMode;
       document.getElementById('scan').onclick = startManualScanning;
       document.getElementById('export').onclick = exportCSV;
@@ -250,6 +273,8 @@
   <video id="video"></video>
 
   <h2>Camera Controls:</h2>
+  <label for="cameraSelect">Select Camera:</label>
+  <select id="cameraSelect"></select>
   <label for="zoom">Zoom:</label>
   <input id="zoom" type="range">
 
