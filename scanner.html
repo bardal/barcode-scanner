@@ -114,6 +114,7 @@
 
     function startManualScanning() {
       if (!scanning) {
+        codeReader.reset(); // Ensure automated scanning is stopped
         scanning = true;
         codeReader.decodeOnceFromVideoDevice(undefined, 'video').then(result => {
           const code = result.text;
