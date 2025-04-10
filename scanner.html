@@ -71,15 +71,25 @@
 
     window.onload = () => {
       codeReader.listVideoInputDevices().then(videoInputDevices => {
-        codeReader.decodeFromVideoDevice(videoInputDevices[0].deviceId, 'video', (result, err) => {
-          if (result) {
-            const code = result.text;
-            if (!scanned.has(code)) {
-              scanned.add(code);
-              createPendingItem(code);
+        if (videoInputDevices.length > 0) {
+          const firstDeviceId = videoInputDevices[0].deviceId;
+          codeReader.decodeFromVideoDevice(firstDeviceId, 'video', (result, err) => {
+            if (result) {
+              const code = result.text;
+              if (!scanned.has(code)) {
+                scanned.add(code);
+                createPendingItem(code);
+              }
+            } else if (err && !(err instanceof ZXing.NotFoundException)) {
+              console.error('Error during decoding:', err);
             }
-          }
-        });
+          });
+        } else {
+          alert('No video input devices found. Please connect a camera.');
+        }
+      }).catch(err => {
+        console.error('Error accessing video input devices:', err);
+        alert('Unable to access camera. Please check permissions.');
       });
 
       document.getElementById('export').onclick = exportCSV;
