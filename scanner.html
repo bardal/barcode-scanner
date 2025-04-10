@@ -81,7 +81,7 @@
                 scanned.add(code);
                 createPendingItem(code);
               }
-            } else if (err && !(err instanceof ZXing.NotFoundException)) {
+            } else if (err && err.name !== 'NotFoundException') {
               console.error('Error during decoding:', err);
             }
           });
