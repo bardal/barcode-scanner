@@ -95,8 +95,12 @@
                 scanned.add(code);
                 createPendingItem(code);
               }
-            } else if (err && err.name !== 'NotFoundException') {
-              console.error('Error during decoding:', err);
+            } else if (err) {
+              if (err.name === 'NotFoundException') {
+                console.log('No barcode found in the current frame.');
+              } else {
+                console.error('Error during decoding:', err);
+              }
             }
           });
         } else {
@@ -118,7 +122,11 @@
             createPendingItem(code);
           }
         }).catch(err => {
-          console.error('Error during manual scan:', err);
+          if (err.name === 'NotFoundException') {
+            alert('No barcode detected. Please try again.');
+          } else {
+            console.error('Error during manual scan:', err);
+          }
         }).finally(() => {
           scanning = false;
         });
