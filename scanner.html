@@ -70,7 +70,8 @@
     }
 
     window.onload = () => {
-      codeReader.listVideoInputDevices().then(videoInputDevices => {
+      navigator.mediaDevices.enumerateDevices().then(devices => {
+        const videoInputDevices = devices.filter(device => device.kind === 'videoinput');
         if (videoInputDevices.length > 0) {
           const firstDeviceId = videoInputDevices[0].deviceId;
           codeReader.decodeFromVideoDevice(firstDeviceId, 'video', (result, err) => {
