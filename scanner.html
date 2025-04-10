@@ -7,6 +7,8 @@
     const codeReader = new BrowserMultiFormatReader();
     let scanned = new Set();
     let accepted = new Set();
+    let scanning = false;
+    let automatedMode = true;
 
     function createPendingItem(code) {
       const list = document.getElementById('pending');
@@ -62,14 +64,26 @@
       if (navigator.share) {
         navigator.share({
           title: 'Scanned Barcodes',
-          text: text
+          text: text,
         }).catch(err => console.log('Share cancelled or failed', err));
       } else {
         alert('Sharing not supported on this device.');
       }
     }
 
-    window.onload = () => {
+    function toggleMode() {
+      automatedMode = !automatedMode;
+      document.getElementById('mode').textContent = `Mode: ${automatedMode ? 'Automated' : 'Manual'}`;
+      document.getElementById('scan').style.display = automatedMode ? 'none' : 'inline';
+
+      if (automatedMode) {
+        startAutomatedScanning();
+      } else {
+        codeReader.reset(); // Stop automated scanning
+      }
+    }
+
+    function startAutomatedScanning() {
       navigator.mediaDevices.enumerateDevices().then(devices => {
         const videoInputDevices = devices.filter(device => device.kind === 'videoinput');
         if (videoInputDevices.length > 0) {
@@ -92,7 +106,30 @@
         console.error('Error accessing video input devices:', err);
         alert('Unable to access camera. Please check permissions.');
       });
+    }
 
+    function startManualScanning() {
+      if (!scanning) {
+        scanning = true;
+        codeReader.decodeOnceFromVideoDevice(undefined, 'video').then(result => {
+          const code = result.text;
+          if (!scanned.has(code)) {
+            scanned.add(code);
+            createPendingItem(code);
+          }
+        }).catch(err => {
+          console.error('Error during manual scan:', err);
+        }).finally(() => {
+          scanning = false;
+        });
+      }
+    }
+
+    window.onload = () => {
+      startAutomatedScanning();
+
+      document.getElementById('toggleMode').onclick = toggleMode;
+      document.getElementById('scan').onclick = startManualScanning;
       document.getElementById('export').onclick = exportCSV;
       document.getElementById('email').onclick = emailList;
       document.getElementById('share').onclick = shareList;
@@ -110,6 +147,9 @@
   <ul id="accepted"></ul>
 
   <h2>Actions:</h2>
+  <p id="mode">Mode: Automated</p>
+  <button id="toggleMode">Toggle Mode</button>
+  <button id="scan" style="display: none;">Scan</button>
   <button id="export">Export CSV</button>
   <button id="email">Email</button>
   <button id="share">Share</button>
