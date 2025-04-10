@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script type="module">
+    import { BrowserMultiFormatReader } from 'https://cdn.jsdelivr.net/npm/@zxing/browser@0.0.10/+esm';
+
+    const codeReader = new BrowserMultiFormatReader();
+    let scanned = new Set();
+    let accepted = new Set();
+
+    function createPendingItem(code) {
+      const list = document.getElementById('pending');
+      const item = document.createElement('li');
+      item.textContent = code + ' ';
+
+      const acceptBtn = document.createElement('button');
+      acceptBtn.textContent = 'Accept';
+      acceptBtn.onclick = () => {
+        if (!accepted.has(code)) {
+          accepted.add(code);
+          addAcceptedItem(code);
+        }
+        list.removeChild(item);
+      };
+
+      const rejectBtn = document.createElement('button');
+      rejectBtn.textContent = 'Reject';
+      rejectBtn.onclick = () => {
+        list.removeChild(item);
+      };
+
+      item.appendChild(acceptBtn);
+      item.appendChild(rejectBtn);
+      list.appendChild(item);
+    }
+
+    function addAcceptedItem(code) {
+      const list = document.getElementById('accepted');
+      const item = document.createElement('li');
+      item.textContent = code;
+      list.appendChild(item);
+    }
+
+    function exportCSV() {
+      const csv = Array.from(accepted).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'barcodes.csv';
+      a.click();
+    }
+
+    function emailList() {
+      const body = Array.from(accepted).join('%0A');
+      const mailto = `mailto:?subject=Scanned%20Barcodes&body=${body}`;
+      window.location.href = mailto;
+    }
+
+    function shareList() {
+      const text = Array.from(accepted).join('\n');
+      if (navigator.share) {
+        navigator.share({
+          title: 'Scanned Barcodes',
+          text: text
+        }).catch(err => console.log('Share cancelled or failed', err));
+      } else {
+        alert('Sharing not supported on this device.');
+      }
+    }
+
+    window.onload = () => {
+      codeReader.listVideoInputDevices().then(videoInputDevices => {
+        codeReader.decodeFromVideoDevice(videoInputDevices[0].deviceId, 'video', (result, err) => {
+          if (result) {
+            const code = result.text;
+            if (!scanned.has(code)) {
+              scanned.add(code);
+              createPendingItem(code);
+            }
+          }
+        });
+      });
+
+      document.getElementById('export').onclick = exportCSV;
+      document.getElementById('email').onclick = emailList;
+      document.getElementById('share').onclick = shareList;
+    };
+  </script>
+</head>
+<body>
+  <h1>Scan Barcodes</h1>
+  <video id="video" width="300" height="200" style="border: 1px solid black;"></video>
+
+  <h2>Pending Confirmation:</h2>
+  <ul id="pending"></ul>
+
+  <h2>Accepted Codes:</h2>
+  <ul id="accepted"></ul>
+
+  <h2>Actions:</h2>
+  <button id="export">Export CSV</button>
+  <button id="email">Email</button>
+  <button id="share">Share</button>
+</body>
+</html>
