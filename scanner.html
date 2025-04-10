@@ -9,6 +9,7 @@
     let accepted = new Set();
     let scanning = false;
     let automatedMode = true;
+    let videoTrack;
 
     function createPendingItem(code) {
       const list = document.getElementById('pending');
@@ -83,6 +84,37 @@
       }
     }
 
+    function setZoom(level) {
+      if (videoTrack && videoTrack.getCapabilities().zoom) {
+        const capabilities = videoTrack.getCapabilities();
+        if (level >= capabilities.zoom.min && level <= capabilities.zoom.max) {
+          videoTrack.applyConstraints({ advanced: [{ zoom: level }] });
+        } else {
+          console.warn('Zoom level out of range');
+        }
+      } else {
+        alert('Zoom is not supported on this device.');
+      }
+    }
+
+    function initializeZoomControls() {
+      const zoomInput = document.getElementById('zoom');
+      if (videoTrack && videoTrack.getCapabilities().zoom) {
+        const capabilities = videoTrack.getCapabilities();
+        zoomInput.min = capabilities.zoom.min;
+        zoomInput.max = capabilities.zoom.max;
+        zoomInput.step = capabilities.zoom.step || 1;
+        zoomInput.value = videoTrack.getSettings().zoom || capabilities.zoom.min;
+
+        zoomInput.oninput = (event) => {
+          setZoom(parseFloat(event.target.value));
+        };
+      } else {
+        zoomInput.style.display = 'none';
+        alert('Zoom controls are not supported on this device.');
+      }
+    }
+
     function startAutomatedScanning() {
       navigator.mediaDevices.enumerateDevices().then(devices => {
         const videoInputDevices = devices.filter(device => device.kind === 'videoinput');
@@ -102,6 +134,9 @@
                 console.error('Error during decoding:', err);
               }
             }
+          }).then(stream => {
+            videoTrack = stream.getVideoTracks()[0];
+            initializeZoomControls();
           });
         } else {
           alert('No video input devices found. Please connect a camera.');
@@ -148,6 +183,10 @@
 <body>
   <h1>Scan Barcodes</h1>
   <video id="video" style="width: 100%; height: auto; border: 1px solid black;"></video>
+
+  <h2>Camera Controls:</h2>
+  <label for="zoom">Zoom:</label>
+  <input id="zoom" type="range" style="width: 100%;">
 
   <h2>Pending Confirmation:</h2>
   <ul id="pending"></ul>
