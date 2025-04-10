@@ -41,6 +41,13 @@
     ul li {
       margin: 5px 0;
     }
+
+    /* Limit video height to 2/3 of the screen in landscape mode */
+    @media (orientation: landscape) {
+      video {
+        max-height: 66vh; /* 2/3 of the viewport height */
+      }
+    }
   </style>
   <script type="module">
     import { BrowserMultiFormatReader } from 'https://cdn.jsdelivr.net/npm/@zxing/browser@0.0.10/+esm';
