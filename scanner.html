@@ -178,6 +178,12 @@
       navigator.mediaDevices.enumerateDevices().then(devices => {
         const videoInputDevices = devices.filter(device => device.kind === 'videoinput');
         cameraSelect.innerHTML = ''; // Clear existing options
+
+        if (videoInputDevices.length === 0) {
+          alert('No cameras found on this device.');
+          return;
+        }
+
         videoInputDevices.forEach((device, index) => {
           const option = document.createElement('option');
           option.value = device.deviceId;
@@ -185,11 +191,12 @@
           cameraSelect.appendChild(option);
         });
 
-        // Set the current device ID to the first camera by default
-        if (videoInputDevices.length > 0) {
+        // Set the current device ID to the first camera by default if not already set
+        if (!currentDeviceId || !videoInputDevices.some(device => device.deviceId === currentDeviceId)) {
           currentDeviceId = videoInputDevices[0].deviceId;
-          cameraSelect.value = currentDeviceId;
         }
+
+        cameraSelect.value = currentDeviceId;
       }).catch(err => {
         console.error('Error enumerating devices:', err);
         alert('Unable to access camera devices.');
