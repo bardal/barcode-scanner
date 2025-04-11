@@ -21,7 +21,7 @@
       text-align: center;
     }
 
-    button, input[type="range"], select {
+    button, input[type="range"] {
       font-size: 1.2em;
       margin: 10px;
       padding: 10px;
@@ -41,13 +41,6 @@
     ul li {
       margin: 5px 0;
     }
-
-    /* Limit video height to 2/3 of the screen in landscape mode */
-    @media (orientation: landscape) {
-      video {
-        max-height: 66vh; /* 2/3 of the viewport height */
-      }
-    }
   </style>
   <script type="module">
     import { BrowserMultiFormatReader } from 'https://cdn.jsdelivr.net/npm/@zxing/browser@0.0.10/+esm';
@@ -58,7 +51,6 @@
     let scanning = false;
     let automatedMode = true;
     let videoTrack;
-    let currentDeviceId;
 
     function createPendingItem(code) {
       const list = document.getElementById('pending');
@@ -173,71 +165,44 @@
       }
     }
 
-    function populateCameraOptions() {
-      const cameraSelect = document.getElementById('cameraSelect');
+    function startAutomatedScanning() {
       navigator.mediaDevices.enumerateDevices().then(devices => {
         const videoInputDevices = devices.filter(device => device.kind === 'videoinput');
-        cameraSelect.innerHTML = ''; // Clear existing options
+        if (videoInputDevices.length > 0) {
+          const firstDeviceId = videoInputDevices[0].deviceId;
 
-        if (videoInputDevices.length === 0) {
-          alert('No cameras found on this device.');
-          return;
-        }
+          // Use getUserMedia to ensure compatibility with iOS
+          navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: firstDeviceId } } })
+            .then(stream => {
+              const videoElement = document.getElementById('video');
+              videoElement.srcObject = stream;
+              videoElement.play(); // Ensure the video feed starts playing
+              videoTrack = stream.getVideoTracks()[0];
+              initializeZoomControls();
 
-        videoInputDevices.forEach((device, index) => {
-          const option = document.createElement('option');
-          option.value = device.deviceId;
-          option.textContent = device.label || `Camera ${index + 1}`;
-          cameraSelect.appendChild(option);
-        });
-
-        // Set the current device ID to the first camera by default if not already set
-        if (!currentDeviceId || !videoInputDevices.some(device => device.deviceId === currentDeviceId)) {
-          currentDeviceId = videoInputDevices[0].deviceId;
-        }
-
-        cameraSelect.value = currentDeviceId;
-      }).catch(err => {
-        console.error('Error enumerating devices:', err);
-        alert('Unable to access camera devices.');
-      });
-    }
-
-    function switchCamera() {
-      const cameraSelect = document.getElementById('cameraSelect');
-      currentDeviceId = cameraSelect.value;
-      startAutomatedScanning(); // Restart the video feed with the selected camera
-    }
-
-    function startAutomatedScanning() {
-      if (currentDeviceId) {
-        navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: currentDeviceId } } })
-          .then(stream => {
-            const videoElement = document.getElementById('video');
-            videoElement.srcObject = stream;
-            videoElement.play(); // Ensure the video feed starts playing
-            videoTrack = stream.getVideoTracks()[0];
-            initializeZoomControls();
-
-            // Start decoding barcodes
-            codeReader.decodeFromVideoElement(videoElement, (result, err) => {
-              if (result) {
-                const code = result.text;
-                if (!scanned.has(code)) {
-                  scanned.add(code);
-                  createPendingItem(code);
+              // Start decoding barcodes
+              codeReader.decodeFromVideoElement(videoElement, (result, err) => {
+                if (result) {
+                  const code = result.text;
+                  if (!scanned.has(code)) {
+                    scanned.add(code);
+                    createPendingItem(code);
+                  }
+                } else if (err && err.name !== 'NotFoundException') {
+                  console.error('Error during decoding:', err);
                 }
-              } else if (err && err.name !== 'NotFoundException') {
-                console.error('Error during decoding:', err);
-              }
+              });
+            }).catch(err => {
+              console.error('Error accessing video track:', err);
+              alert('Unable to access video feed. Please check camera permissions.');
             });
-          }).catch(err => {
-            console.error('Error accessing video track:', err);
-            alert('Unable to access video feed. Please check camera permissions.');
-          });
-      } else {
-        alert('No camera selected.');
-      }
+        } else {
+          alert('No video input devices found. Please connect a camera.');
+        }
+      }).catch(err => {
+        console.error('Error accessing video input devices:', err);
+        alert('Unable to access camera. Please check permissions.');
+      });
     }
 
     function startManualScanning() {
@@ -263,10 +228,8 @@
     }
 
     window.onload = () => {
-      populateCameraOptions();
       startAutomatedScanning();
 
-      document.getElementById('cameraSelect').onchange = switchCamera;
       document.getElementById('toggleMode').onclick = toggleMode;
       document.getElementById('scan').onclick = startManualScanning;
       document.getElementById('export').onclick = exportCSV;
@@ -280,8 +243,6 @@
   <video id="video"></video>
 
   <h2>Camera Controls:</h2>
-  <label for="cameraSelect">Select Camera:</label>
-  <select id="cameraSelect"></select>
   <label for="zoom">Zoom:</label>
   <input id="zoom" type="range">
 
